@@ -1,0 +1,387 @@
+.tower-detail {
+  padding-top: 80px;
+}
+
+.breadcrumb-section {
+  background-color: #f8f8f8;
+  padding: 1rem 0;
+  font-size: 0.9rem;
+}
+
+.breadcrumb-section a {
+  color: #ff6b35;
+  text-decoration: none;
+  margin: 0 0.5rem;
+}
+
+.breadcrumb-section a:hover {
+  text-decoration: underline;
+}
+
+.tower-header-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 3rem 0;
+  text-align: center;
+}
+
+.tower-header-section h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.tower-subtitle {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  margin-bottom: 1rem;
+}
+
+.tower-status-badge {
+  margin-top: 1rem;
+}
+
+.tower-status-badge .status {
+  display: inline-block;
+  padding: 0.5rem 1.5rem;
+  border-radius: 25px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.tower-status-badge .status.booking_open {
+  background-color: #4caf50;
+  color: white;
+}
+
+.tower-status-badge .status.booking_closed {
+  background-color: #ff9800;
+  color: white;
+}
+
+.tower-status-badge .status.sold_out {
+  background-color: #f44336;
+  color: white;
+}
+
+.tower-details-section {
+  background-color: #f8f8f8;
+}
+
+.tower-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.tower-details-column {
+  background: white;
+  padding: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-row .detail-label {
+  font-weight: 600;
+  color: #666;
+}
+
+.detail-row .detail-value {
+  font-weight: 700;
+  color: #333;
+}
+
+.tower-amenities-section {
+  background-color: white;
+}
+
+.amenities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.amenity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.amenity-item:hover {
+  background-color: #ff6b35;
+  color: white;
+  transform: translateY(-2px);
+}
+
+.amenity-icon {
+  font-size: 1.5rem;
+}
+
+.flats-section {
+  background-color: #f8f8f8;
+}
+
+.flats-header {
+  margin-bottom: 2rem;
+}
+
+.status-legend {
+  display: flex;
+  gap: 2rem;
+  margin: 1.5rem 0;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legend-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.legend-dot.available {
+  background-color: #4caf50;
+}
+
+.legend-dot.sold {
+  background-color: #f44336;
+}
+
+.flats-filters {
+  display: flex;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 0.5rem 1.5rem;
+  border: 2px solid #ddd;
+  background: white;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.filter-btn:hover {
+  border-color: #ff6b35;
+  color: #ff6b35;
+}
+
+.filter-btn.active {
+  background-color: #ff6b35;
+  color: white;
+  border-color: #ff6b35;
+}
+
+.status-summary {
+  display: flex;
+  gap: 2rem;
+  margin: 1.5rem 0;
+  flex-wrap: wrap;
+}
+
+.summary-item {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.summary-label {
+  font-weight: 600;
+  color: #666;
+}
+
+.summary-value {
+  font-weight: 700;
+}
+
+.summary-value.available {
+  color: #4caf50;
+}
+
+.summary-value.sold {
+  color: #f44336;
+}
+
+.summary-value.reserved {
+  color: #ff9800;
+}
+
+.summary-value.hold {
+  color: #9e9e9e;
+}
+
+.flats-by-floor {
+  margin-top: 2rem;
+}
+
+.floor-section {
+  margin-bottom: 3rem;
+}
+
+.floor-title {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #333;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #ff6b35;
+}
+
+.flats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.flat-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 3px solid transparent;
+  text-align: center;
+}
+
+.flat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.flat-card.available {
+  border-color: #4caf50;
+}
+
+.flat-card.sold {
+  border-color: #f44336;
+  opacity: 0.7;
+}
+
+.flat-card.reserved {
+  border-color: #ff9800;
+}
+
+.flat-card.hold {
+  border-color: #9e9e9e;
+}
+
+.flat-number {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.flat-type {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.flat-area {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ff6b35;
+  margin-bottom: 0.5rem;
+}
+
+.flat-price {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.flat-status {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.flat-status.available {
+  background-color: #4caf50;
+  color: white;
+}
+
+.flat-status.sold {
+  background-color: #f44336;
+  color: white;
+}
+
+.flat-status.reserved {
+  background-color: #ff9800;
+  color: white;
+}
+
+.flat-status.hold {
+  background-color: #9e9e9e;
+  color: white;
+}
+
+.tower-contact-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.contact-box-large {
+  text-align: center;
+  padding: 3rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  backdrop-filter: blur(10px);
+}
+
+.contact-box-large h2 {
+  color: white;
+  margin-bottom: 1rem;
+}
+
+.contact-box-large p {
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 768px) {
+  .tower-header-section h1 {
+    font-size: 1.8rem;
+  }
+
+  .tower-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .flats-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+
+  .flats-filters {
+    justify-content: center;
+  }
+}
+

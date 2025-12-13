@@ -1,0 +1,136 @@
+.about-page {
+  min-height: 100vh;
+}
+
+.about-hero {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4rem 0;
+  text-align: center;
+}
+
+.about-hero h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.about-hero p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+.about-content {
+  background: white;
+}
+
+.about-main {
+  max-width: 900px;
+  margin: 0 auto 4rem;
+  text-align: center;
+}
+
+.about-main h2 {
+  font-size: 2.5rem;
+  color: #ff6b35;
+  margin-bottom: 2rem;
+}
+
+.about-main p {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.about-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin-top: 3rem;
+}
+
+.value-card {
+  text-align: center;
+  padding: 2rem;
+  background: #f8f9fa;
+  border-radius: 10px;
+  transition: transform 0.3s ease;
+}
+
+.value-card:hover {
+  transform: translateY(-5px);
+}
+
+.value-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.value-card h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #1a1a1a;
+}
+
+.value-card p {
+  color: #666;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .about-hero {
+    padding: 3rem 0;
+  }
+  
+  .about-hero h1 {
+    font-size: 2rem;
+    padding: 0 1rem;
+  }
+  
+  .about-hero p {
+    font-size: 1rem;
+    padding: 0 1rem;
+  }
+  
+  .about-main {
+    padding: 0 1rem;
+    margin-bottom: 3rem;
+  }
+  
+  .about-main h2 {
+    font-size: 2rem;
+  }
+  
+  .about-main p {
+    font-size: 1rem;
+  }
+  
+  .about-values {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 0 1rem;
+  }
+  
+  .value-card {
+    padding: 1.5rem;
+  }
+  
+  .value-icon {
+    font-size: 2.5rem;
+  }
+  
+  .value-card h3 {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .about-hero h1 {
+    font-size: 1.75rem;
+  }
+  
+  .about-main h2 {
+    font-size: 1.75rem;
+  }
+}
+

@@ -1,0 +1,1555 @@
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { adminAPI, projectsAPI, getImageUrl } from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
+import './AdminDashboard.css'
+
+const AdminDashboard = () => {
+  const { isAdmin, logout } = useAuth()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('dashboard')
+  const [stats, setStats] = useState(null)
+  const [leads, setLeads] = useState([])
+  const [projects, setProjects] = useState([])
+  const [cities, setCities] = useState([])
+  const [selectedPeriod, setSelectedPeriod] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  
+  // Project form state
+  const [showProjectForm, setShowProjectForm] = useState(false)
+  const [editingProject, setEditingProject] = useState(null)
+  const [projectFormData, setProjectFormData] = useState({
+    title: '',
+    id_number: '',
+    property_type: 'residential',
+    project_status: '',
+    location: '',
+    city: '',
+    city_name: '',
+    state: 'Maharashtra',
+    map_location: '',
+    description: '',
+    about_listing: '',
+    price: '',
+    available_flat_types: '',
+    rera_number: '',
+    land_area: '',
+    amenities_area: '',
+    total_units: '',
+    total_towers: '',
+    developer_name: '',
+    is_hot: false,
+    featured: false,
+    cover_image: null,
+  })
+  const [projectImages, setProjectImages] = useState([{ image: null, title: '', category: 'other', order: 0 }])
+  const [projectAmenities, setProjectAmenities] = useState([{ name: '', icon: '', order: 0 }])
+  const [towers, setTowers] = useState([{
+    name: '',
+    tower_number: '',
+    total_floors: '',
+    booking_status: 'available',
+    is_active: true,
+    order: 0,
+    flats: [{ flat_number: '', floor: '', flat_type: '', area: '', price: '', availability: 'available', order: 0 }],
+    amenities: [{ name: '', icon: '', order: 0 }]
+  }])
+  const [expandedSections, setExpandedSections] = useState({
+    basic: true,
+    location: true,
+    searchFilters: true,
+    projectDetails: true,
+    media: true,
+    settings: true,
+    projectImages: true,
+    projectAmenities: true,
+    towers: true
+  })
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
+  // Handle body scroll lock when modal is open
+  useEffect(() => {
+    console.log('showProjectForm changed to:', showProjectForm)
+    if (showProjectForm) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [showProjectForm])
+
+  useEffect(() => {
+    // Check if user is logged in as admin
+    if (!isAdmin) {
+      navigate('/login?admin=true')
+      return
+    }
+    fetchInitialData()
+  }, [navigate, isAdmin])
+
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      fetchDashboardData()
+    } else if (activeTab === 'projects') {
+      fetchProjects()
+    } else if (activeTab === 'leads') {
+      fetchLeads()
+    }
+  }, [activeTab, selectedPeriod])
+
+  const fetchInitialData = async () => {
+    try {
+      const citiesRes = await adminAPI.getCities()
+      setCities(citiesRes.data.results || citiesRes.data)
+    } catch (error) {
+      console.error('Error fetching cities:', error)
+    }
+  }
+
+  const fetchDashboardData = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const statsRes = await adminAPI.getLeadsStats()
+      setStats(statsRes.data)
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to load dashboard data')
+      console.error('Error fetching dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchLeads = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const leadsRes = await adminAPI.getLeadsList({ period: selectedPeriod })
+      setLeads(leadsRes.data)
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to load leads')
+      console.error('Error fetching leads:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchProjects = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const projectsRes = await adminAPI.getProjects({})
+      setProjects(projectsRes.data.results || projectsRes.data)
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to load projects')
+      console.error('Error fetching projects:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleMarkRead = async (leadId) => {
+    try {
+      await adminAPI.markLeadRead(leadId)
+      setLeads(leads.map(lead => lead.id === leadId ? { ...lead, read: true } : lead))
+      setSuccess('Lead marked as read')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to mark lead as read')
+      setTimeout(() => setError(''), 5000)
+    }
+  }
+
+  const handleProjectFormChange = (e) => {
+    const { name, value, type, checked, files } = e.target
+    if (type === 'file') {
+      setProjectFormData({ ...projectFormData, [name]: files[0] })
+    } else if (type === 'checkbox') {
+      setProjectFormData({ ...projectFormData, [name]: checked })
+    } else {
+      setProjectFormData({ ...projectFormData, [name]: value })
+    }
+  }
+
+  const handleCreateProject = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      // Step 1: Create/Update Project
+      const formData = new FormData()
+      Object.keys(projectFormData).forEach(key => {
+        if (key === 'cover_image' && projectFormData[key]) {
+          formData.append(key, projectFormData[key])
+        } else if (projectFormData[key] !== null && projectFormData[key] !== '') {
+          formData.append(key, projectFormData[key])
+        }
+      })
+
+      let projectResponse
+      if (editingProject) {
+        projectResponse = await adminAPI.updateProject(editingProject.id, formData)
+      } else {
+        projectResponse = await adminAPI.createProject(formData)
+      }
+      
+      const projectId = editingProject ? editingProject.id : projectResponse.data.id
+
+      // Step 2: Create Project Images
+      for (const img of projectImages) {
+        if (img.image) {
+          const imgFormData = new FormData()
+          imgFormData.append('project', projectId)
+          imgFormData.append('image', img.image)
+          imgFormData.append('title', img.title || '')
+          imgFormData.append('category', img.category)
+          imgFormData.append('order', img.order)
+          await adminAPI.createProjectImage(imgFormData)
+        }
+      }
+
+      // Step 3: Create Project Amenities
+      for (const amenity of projectAmenities) {
+        if (amenity.name) {
+          await adminAPI.createProjectAmenity({
+            project: projectId,
+            name: amenity.name,
+            icon: amenity.icon || '',
+            order: amenity.order
+          })
+        }
+      }
+
+      // Step 4: Create Towers with Flats and Tower Amenities
+      for (const tower of towers) {
+        if (tower.name) {
+          const towerData = {
+            project: projectId,
+            name: tower.name,
+            tower_number: tower.tower_number || '',
+            total_floors: tower.total_floors || '',
+            booking_status: tower.booking_status,
+            is_active: tower.is_active,
+            order: tower.order
+          }
+          const towerResponse = await adminAPI.createTower(towerData)
+          const towerId = towerResponse.data.id
+
+          // Create Flats for this Tower
+          for (const flat of tower.flats) {
+            if (flat.flat_number) {
+              await adminAPI.createFlat({
+                tower: towerId,
+                flat_number: flat.flat_number,
+                floor: flat.floor || '',
+                flat_type: flat.flat_type || '',
+                area: flat.area || '',
+                price: flat.price || '',
+                availability: flat.availability,
+                order: flat.order
+              })
+            }
+          }
+
+          // Create Tower Amenities
+          for (const amenity of tower.amenities) {
+            if (amenity.name) {
+              await adminAPI.createTowerAmenity({
+                tower: towerId,
+                name: amenity.name,
+                icon: amenity.icon || '',
+                order: amenity.order
+              })
+            }
+          }
+        }
+      }
+
+      setSuccess(editingProject ? 'Project updated successfully!' : 'Project created successfully!')
+
+      // Reset form
+      setShowProjectForm(false)
+      setEditingProject(null)
+      setProjectFormData({
+        title: '',
+        id_number: '',
+        property_type: 'residential',
+        project_status: '',
+        location: '',
+        city: '',
+        city_name: '',
+        state: 'Maharashtra',
+        map_location: '',
+        description: '',
+        about_listing: '',
+        price: '',
+        available_flat_types: '',
+        rera_number: '',
+        land_area: '',
+        amenities_area: '',
+        total_units: '',
+        total_towers: '',
+        developer_name: '',
+        is_hot: false,
+        featured: false,
+        cover_image: null,
+      })
+      setProjectImages([{ image: null, title: '', category: 'other', order: 0 }])
+      setProjectAmenities([{ name: '', icon: '', order: 0 }])
+      setTowers([{
+        name: '',
+        tower_number: '',
+        total_floors: '',
+        booking_status: 'available',
+        is_active: true,
+        order: 0,
+        flats: [{ flat_number: '', floor: '', flat_type: '', area: '', price: '', availability: 'available', order: 0 }],
+        amenities: [{ name: '', icon: '', order: 0 }]
+      }])
+      
+      // Refresh projects list
+      fetchProjects()
+      setTimeout(() => setSuccess(''), 5000)
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || 
+        (error.response?.data ? JSON.stringify(error.response.data) : 'Failed to save project')
+      setError(errorMsg)
+      setTimeout(() => setError(''), 5000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleEditProject = (project) => {
+    setEditingProject(project)
+    setProjectFormData({
+      title: project.title || '',
+      id_number: project.id_number || '',
+      property_type: project.property_type || 'residential',
+      project_status: project.project_status || '',
+      location: project.location || '',
+      city: project.city || '',
+      city_name: project.city_name || '',
+      state: project.state || 'Maharashtra',
+      map_location: project.map_location || '',
+      description: project.description || '',
+      about_listing: project.about_listing || '',
+      price: project.price || '',
+      available_flat_types: project.available_flat_types || '',
+      rera_number: project.rera_number || '',
+      land_area: project.land_area || '',
+      amenities_area: project.amenities_area || '',
+      total_units: project.total_units || '',
+      total_towers: project.total_towers || '',
+      developer_name: project.developer_name || '',
+      is_hot: project.is_hot || false,
+      featured: project.featured || false,
+      cover_image: null,
+    })
+    setShowProjectForm(true)
+  }
+
+  const handleDeleteProject = async (projectId) => {
+    if (!window.confirm('Are you sure you want to delete this project?')) {
+      return
+    }
+    try {
+      await adminAPI.deleteProject(projectId)
+      setSuccess('Project deleted successfully')
+      fetchProjects()
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to delete project')
+      setTimeout(() => setError(''), 5000)
+    }
+  }
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }))
+  }
+
+  const addProjectImage = () => {
+    setProjectImages([...projectImages, { image: null, title: '', category: 'other', order: projectImages.length }])
+  }
+
+  const removeProjectImage = (index) => {
+    setProjectImages(projectImages.filter((_, i) => i !== index))
+  }
+
+  const updateProjectImage = (index, field, value) => {
+    const updated = [...projectImages]
+    updated[index] = { ...updated[index], [field]: value }
+    setProjectImages(updated)
+  }
+
+  const addProjectAmenity = () => {
+    setProjectAmenities([...projectAmenities, { name: '', icon: '', order: projectAmenities.length }])
+  }
+
+  const removeProjectAmenity = (index) => {
+    setProjectAmenities(projectAmenities.filter((_, i) => i !== index))
+  }
+
+  const updateProjectAmenity = (index, field, value) => {
+    const updated = [...projectAmenities]
+    updated[index] = { ...updated[index], [field]: value }
+    setProjectAmenities(updated)
+  }
+
+  const addTower = () => {
+    setTowers([...towers, {
+      name: '',
+      tower_number: '',
+      total_floors: '',
+      booking_status: 'available',
+      is_active: true,
+      order: towers.length,
+      flats: [{ flat_number: '', floor: '', flat_type: '', area: '', price: '', availability: 'available', order: 0 }],
+      amenities: [{ name: '', icon: '', order: 0 }]
+    }])
+  }
+
+  const removeTower = (index) => {
+    setTowers(towers.filter((_, i) => i !== index))
+  }
+
+  const updateTower = (index, field, value) => {
+    const updated = [...towers]
+    updated[index] = { ...updated[index], [field]: value }
+    setTowers(updated)
+  }
+
+  const addTowerFlat = (towerIndex) => {
+    const updated = [...towers]
+    updated[towerIndex].flats.push({ flat_number: '', floor: '', flat_type: '', area: '', price: '', availability: 'available', order: updated[towerIndex].flats.length })
+    setTowers(updated)
+  }
+
+  const removeTowerFlat = (towerIndex, flatIndex) => {
+    const updated = [...towers]
+    updated[towerIndex].flats = updated[towerIndex].flats.filter((_, i) => i !== flatIndex)
+    setTowers(updated)
+  }
+
+  const updateTowerFlat = (towerIndex, flatIndex, field, value) => {
+    const updated = [...towers]
+    updated[towerIndex].flats[flatIndex] = { ...updated[towerIndex].flats[flatIndex], [field]: value }
+    setTowers(updated)
+  }
+
+  const addTowerAmenity = (towerIndex) => {
+    const updated = [...towers]
+    updated[towerIndex].amenities.push({ name: '', icon: '', order: updated[towerIndex].amenities.length })
+    setTowers(updated)
+  }
+
+  const removeTowerAmenity = (towerIndex, amenityIndex) => {
+    const updated = [...towers]
+    updated[towerIndex].amenities = updated[towerIndex].amenities.filter((_, i) => i !== amenityIndex)
+    setTowers(updated)
+  }
+
+  const updateTowerAmenity = (towerIndex, amenityIndex, field, value) => {
+    const updated = [...towers]
+    updated[towerIndex].amenities[amenityIndex] = { ...updated[towerIndex].amenities[amenityIndex], [field]: value }
+    setTowers(updated)
+  }
+
+  if (loading && !stats && activeTab === 'dashboard') {
+    return <div className="admin-loading">Loading dashboard...</div>
+  }
+
+  return (
+    <div className="admin-dashboard">
+      <div className="admin-header">
+        <div className="admin-header-content">
+          <h1>Admin Dashboard</h1>
+          <button className="btn btn-secondary" onClick={handleLogout}>Logout</button>
+        </div>
+      </div>
+
+      <div className="admin-layout">
+        {/* Sidebar */}
+        <div className="admin-sidebar">
+          <div className="sidebar-menu">
+            <button
+              className={`sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              <span className="sidebar-icon">📊</span>
+              <span className="sidebar-text">Dashboard</span>
+            </button>
+            <button
+              className={`sidebar-item ${activeTab === 'projects' ? 'active' : ''}`}
+              onClick={() => setActiveTab('projects')}
+            >
+              <span className="sidebar-icon">🏢</span>
+              <span className="sidebar-text">Projects</span>
+            </button>
+            <button
+              className={`sidebar-item ${activeTab === 'leads' ? 'active' : ''}`}
+              onClick={() => setActiveTab('leads')}
+            >
+              <span className="sidebar-icon">📋</span>
+              <span className="sidebar-text">Leads</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="admin-main-content">
+          {error && <div className="alert alert-error">{error}</div>}
+          {success && <div className="alert alert-success">{success}</div>}
+
+          {/* Dashboard Tab */}
+          {activeTab === 'dashboard' && (
+            <div className="dashboard-tab">
+              <h2>Dashboard Overview</h2>
+              {stats && (
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <h3>Today</h3>
+                    <div className="stat-value">{stats.today}</div>
+                    <p>Leads</p>
+                  </div>
+                  <div className="stat-card">
+                    <h3>Yesterday</h3>
+                    <div className="stat-value">{stats.yesterday}</div>
+                    <p>Leads</p>
+                  </div>
+                  <div className="stat-card">
+                    <h3>Last Week</h3>
+                    <div className="stat-value">{stats.last_week}</div>
+                    <p>Leads</p>
+                  </div>
+                  <div className="stat-card">
+                    <h3>Last Month</h3>
+                    <div className="stat-value">{stats.last_month}</div>
+                    <p>Leads</p>
+                  </div>
+                  <div className="stat-card">
+                    <h3>Total</h3>
+                    <div className="stat-value">{stats.total}</div>
+                    <p>Leads</p>
+                  </div>
+                  <div className="stat-card unread">
+                    <h3>Unread</h3>
+                    <div className="stat-value">{stats.unread}</div>
+                    <p>Leads</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Projects Tab */}
+          {activeTab === 'projects' && (
+            <div className="projects-tab">
+              <div className="tab-header">
+                <h2>Projects Management</h2>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    console.log('Add Project button clicked, current showProjectForm:', showProjectForm)
+                    setEditingProject(null)
+                    setProjectFormData({
+                      title: '',
+                      id_number: '',
+                      property_type: 'residential',
+                      project_status: '',
+                      location: '',
+                      city: '',
+                      city_name: '',
+                      state: 'Maharashtra',
+                      map_location: '',
+                      description: '',
+                      about_listing: '',
+                      price: '',
+                      available_flat_types: '',
+                      rera_number: '',
+                      land_area: '',
+                      amenities_area: '',
+                      total_units: '',
+                      total_towers: '',
+                      developer_name: '',
+                      is_hot: false,
+                      featured: false,
+                      cover_image: null,
+                    })
+                    setProjectImages([{ image: null, title: '', category: 'other', order: 0 }])
+                    setProjectAmenities([{ name: '', icon: '', order: 0 }])
+                    setTowers([{
+                      name: '',
+                      tower_number: '',
+                      total_floors: '',
+                      booking_status: 'available',
+                      is_active: true,
+                      order: 0,
+                      flats: [{ flat_number: '', floor: '', flat_type: '', area: '', price: '', availability: 'available', order: 0 }],
+                      amenities: [{ name: '', icon: '', order: 0 }]
+                    }])
+                    setExpandedSections({
+                      basic: true,
+                      location: true,
+                      searchFilters: true,
+                      projectDetails: true,
+                      media: true,
+                      settings: true,
+                      projectImages: true,
+                      projectAmenities: true,
+                      towers: true
+                    })
+                    console.log('Setting showProjectForm to true')
+                    setShowProjectForm(true)
+                    // Force a re-render check
+                    setTimeout(() => {
+                      console.log('After setting showProjectForm, value is:', showProjectForm)
+                    }, 100)
+                  }}
+                >
+                  + Add New Project
+                </button>
+              </div>
+
+              {showProjectForm && (
+                <div 
+                  className="project-form-modal"
+                  style={{ display: 'flex', visibility: 'visible', opacity: 1 }}
+                  onClick={(e) => {
+                    // Close modal if clicking on backdrop
+                    if (e.target.classList.contains('project-form-modal')) {
+                      setShowProjectForm(false)
+                      setEditingProject(null)
+                    }
+                  }}
+                >
+                  <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ display: 'block', visibility: 'visible', opacity: 1 }}>
+                    <div className="modal-header">
+                      <h3>{editingProject ? 'Edit Project' : 'Add New Project'}</h3>
+                      <button
+                        className="close-btn"
+                        onClick={() => {
+                          setShowProjectForm(false)
+                          setEditingProject(null)
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <form onSubmit={handleCreateProject}>
+                      {/* Basic Information Section */}
+                      <div className="form-section">
+                        <div className="section-header" onClick={() => toggleSection('basic')}>
+                          <h4>Basic Information</h4>
+                          <span>{expandedSections.basic ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedSections.basic && (
+                          <div className="form-grid">
+                            <div className="form-group">
+                              <label>Project Title *</label>
+                              <input
+                                type="text"
+                                name="title"
+                                value={projectFormData.title}
+                                onChange={handleProjectFormChange}
+                                required
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>ID Number</label>
+                              <input
+                                type="text"
+                                name="id_number"
+                                value={projectFormData.id_number}
+                                onChange={handleProjectFormChange}
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>Property Type *</label>
+                              <select
+                                name="property_type"
+                                value={projectFormData.property_type}
+                                onChange={handleProjectFormChange}
+                                required
+                              >
+                                <option value="residential">Residential</option>
+                                <option value="commercial">Commercial</option>
+                                <option value="resale">Resale</option>
+                              </select>
+                            </div>
+
+                            <div className="form-group">
+                              <label>Project Status</label>
+                              <select
+                                name="project_status"
+                                value={projectFormData.project_status}
+                                onChange={handleProjectFormChange}
+                              >
+                                <option value="">Select Status</option>
+                                <option value="pre_launch">Pre Launch</option>
+                                <option value="new_launch">New Launch</option>
+                                <option value="new_tower_launch">New Tower Launch</option>
+                                <option value="ready_to_move">Ready To Move</option>
+                                <option value="nearing_possession">Nearing Possession</option>
+                              </select>
+                            </div>
+
+                            <div className="form-group full-width">
+                              <label>Description *</label>
+                              <textarea
+                                name="description"
+                                value={projectFormData.description}
+                                onChange={handleProjectFormChange}
+                                rows="4"
+                                required
+                              />
+                            </div>
+
+                            <div className="form-group full-width">
+                              <label>About Listing</label>
+                              <textarea
+                                name="about_listing"
+                                value={projectFormData.about_listing}
+                                onChange={handleProjectFormChange}
+                                rows="4"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Location Section */}
+                      <div className="form-section">
+                        <div className="section-header" onClick={() => toggleSection('location')}>
+                          <h4>Location</h4>
+                          <span>{expandedSections.location ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedSections.location && (
+                          <div className="form-grid">
+                            <div className="form-group">
+                              <label>Location *</label>
+                              <input
+                                type="text"
+                                name="location"
+                                value={projectFormData.location}
+                                onChange={handleProjectFormChange}
+                                required
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>City</label>
+                              <select
+                                name="city"
+                                value={projectFormData.city}
+                                onChange={handleProjectFormChange}
+                              >
+                                <option value="">Select City</option>
+                                {cities.map(city => (
+                                  <option key={city.id} value={city.id}>{city.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="form-group">
+                              <label>City Name (Fallback)</label>
+                              <input
+                                type="text"
+                                name="city_name"
+                                value={projectFormData.city_name}
+                                onChange={handleProjectFormChange}
+                                placeholder="Pune"
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>State</label>
+                              <input
+                                type="text"
+                                name="state"
+                                value={projectFormData.state}
+                                onChange={handleProjectFormChange}
+                              />
+                            </div>
+
+                            <div className="form-group full-width">
+                              <label>Map Location</label>
+                              <textarea
+                                name="map_location"
+                                value={projectFormData.map_location}
+                                onChange={handleProjectFormChange}
+                                rows="3"
+                                placeholder="Full address for map"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Search Filters Section */}
+                      <div className="form-section">
+                        <div className="section-header" onClick={() => toggleSection('searchFilters')}>
+                          <h4>Search Filters</h4>
+                          <span>{expandedSections.searchFilters ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedSections.searchFilters && (
+                          <div className="form-grid">
+                            <div className="form-group full-width">
+                              <label>Available Flat Types</label>
+                              <input
+                                type="text"
+                                name="available_flat_types"
+                                value={projectFormData.available_flat_types}
+                                onChange={handleProjectFormChange}
+                                placeholder="Comma-separated flat types: 1bhk, 2bhk, 3bhk"
+                              />
+                              <small>Comma-separated flat types: 1bhk, 2bhk, 3bhk</small>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Project Details Section */}
+                      <div className="form-section">
+                        <div className="section-header" onClick={() => toggleSection('projectDetails')}>
+                          <h4>Project Details</h4>
+                          <span>{expandedSections.projectDetails ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedSections.projectDetails && (
+                          <div className="form-grid">
+                            <div className="form-group">
+                              <label>RERA Number</label>
+                              <input
+                                type="text"
+                                name="rera_number"
+                                value={projectFormData.rera_number}
+                                onChange={handleProjectFormChange}
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>Land Area</label>
+                              <input
+                                type="text"
+                                name="land_area"
+                                value={projectFormData.land_area}
+                                onChange={handleProjectFormChange}
+                                placeholder="e.g., 2.2 ACRES"
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>Amenities Area</label>
+                              <input
+                                type="text"
+                                name="amenities_area"
+                                value={projectFormData.amenities_area}
+                                onChange={handleProjectFormChange}
+                                placeholder="e.g., 25K SQ FT"
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>Total Units</label>
+                              <input
+                                type="number"
+                                name="total_units"
+                                value={projectFormData.total_units}
+                                onChange={handleProjectFormChange}
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>Total Towers</label>
+                              <input
+                                type="number"
+                                name="total_towers"
+                                value={projectFormData.total_towers}
+                                onChange={handleProjectFormChange}
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>Developer Name</label>
+                              <input
+                                type="text"
+                                name="developer_name"
+                                value={projectFormData.developer_name}
+                                onChange={handleProjectFormChange}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Media & Pricing Section */}
+                      <div className="form-section">
+                        <div className="section-header" onClick={() => toggleSection('media')}>
+                          <h4>Media & Pricing</h4>
+                          <span>{expandedSections.media ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedSections.media && (
+                          <div className="form-grid">
+                            <div className="form-group full-width">
+                              <label>Cover Image {!editingProject && '*'}</label>
+                              <input
+                                type="file"
+                                name="cover_image"
+                                accept="image/*"
+                                onChange={handleProjectFormChange}
+                                required={!editingProject}
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>Price (₹)</label>
+                              <input
+                                type="number"
+                                name="price"
+                                value={projectFormData.price}
+                                onChange={handleProjectFormChange}
+                                step="0.01"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Settings Section */}
+                      <div className="form-section">
+                        <div className="section-header" onClick={() => toggleSection('settings')}>
+                          <h4>Settings</h4>
+                          <span>{expandedSections.settings ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedSections.settings && (
+                          <div className="form-grid">
+                            <div className="form-group">
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  name="featured"
+                                  checked={projectFormData.featured}
+                                  onChange={handleProjectFormChange}
+                                />
+                                Featured
+                              </label>
+                            </div>
+
+                            <div className="form-group">
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  name="is_hot"
+                                  checked={projectFormData.is_hot}
+                                  onChange={handleProjectFormChange}
+                                />
+                                Is hot (Mark as Hot property)
+                              </label>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Project Images Section */}
+                      <div className="form-section">
+                        <div className="section-header" onClick={() => toggleSection('projectImages')}>
+                          <h4>PROJECT IMAGES</h4>
+                          <span>{expandedSections.projectImages ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedSections.projectImages && (
+                          <div className="nested-form-section">
+                            <table className="nested-table">
+                              <thead>
+                                <tr>
+                                  <th>IMAGE</th>
+                                  <th>TITLE</th>
+                                  <th>CATEGORY</th>
+                                  <th>ORDER</th>
+                                  <th>DELETE?</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {projectImages.map((img, index) => (
+                                  <tr key={index}>
+                                    <td>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => updateProjectImage(index, 'image', e.target.files[0])}
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="text"
+                                        value={img.title}
+                                        onChange={(e) => updateProjectImage(index, 'title', e.target.value)}
+                                        placeholder="Image title"
+                                      />
+                                    </td>
+                                    <td>
+                                      <select
+                                        value={img.category}
+                                        onChange={(e) => updateProjectImage(index, 'category', e.target.value)}
+                                      >
+                                        <option value="other">Other</option>
+                                        <option value="inside_view">Inside View</option>
+                                        <option value="left_view">Left View</option>
+                                        <option value="right_view">Right View</option>
+                                        <option value="front_view">Front View</option>
+                                        <option value="back_view">Back View</option>
+                                        <option value="amenity">Amenity</option>
+                                        <option value="gym">Gym</option>
+                                        <option value="lawn">Lawn</option>
+                                        <option value="pool">Pool</option>
+                                      </select>
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="number"
+                                        value={img.order}
+                                        onChange={(e) => updateProjectImage(index, 'order', parseInt(e.target.value))}
+                                        style={{ width: '60px' }}
+                                      />
+                                    </td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="btn-remove"
+                                        onClick={() => removeProjectImage(index)}
+                                      >
+                                        ×
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            <button
+                              type="button"
+                              className="btn-add-another"
+                              onClick={addProjectImage}
+                            >
+                              + Add another Project image
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Project Amenities Section */}
+                      <div className="form-section">
+                        <div className="section-header" onClick={() => toggleSection('projectAmenities')}>
+                          <h4>PROJECT AMENITIES</h4>
+                          <span>{expandedSections.projectAmenities ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedSections.projectAmenities && (
+                          <div className="nested-form-section">
+                            <table className="nested-table">
+                              <thead>
+                                <tr>
+                                  <th>NAME</th>
+                                  <th>ICON</th>
+                                  <th>ORDER</th>
+                                  <th>DELETE?</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {projectAmenities.map((amenity, index) => (
+                                  <tr key={index}>
+                                    <td>
+                                      <input
+                                        type="text"
+                                        value={amenity.name}
+                                        onChange={(e) => updateProjectAmenity(index, 'name', e.target.value)}
+                                        placeholder="Amenity name"
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="text"
+                                        value={amenity.icon}
+                                        onChange={(e) => updateProjectAmenity(index, 'icon', e.target.value)}
+                                        placeholder="Icon/Emoji"
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="number"
+                                        value={amenity.order}
+                                        onChange={(e) => updateProjectAmenity(index, 'order', parseInt(e.target.value))}
+                                        style={{ width: '60px' }}
+                                      />
+                                    </td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="btn-remove"
+                                        onClick={() => removeProjectAmenity(index)}
+                                      >
+                                        ×
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            <button
+                              type="button"
+                              className="btn-add-another"
+                              onClick={addProjectAmenity}
+                            >
+                              + Add another Project amenity
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Towers Section */}
+                      <div className="form-section">
+                        <div className="section-header" onClick={() => toggleSection('towers')}>
+                          <h4>TOWERS</h4>
+                          <span>{expandedSections.towers ? '▼' : '▶'}</span>
+                        </div>
+                        {expandedSections.towers && (
+                          <div className="nested-form-section">
+                            {towers.map((tower, towerIndex) => (
+                              <div key={towerIndex} className="tower-section">
+                                <div className="tower-header">
+                                  <h5>Tower {towerIndex + 1}</h5>
+                                  {towers.length > 1 && (
+                                    <button
+                                      type="button"
+                                      className="btn-remove"
+                                      onClick={() => removeTower(towerIndex)}
+                                    >
+                                      Remove Tower
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="form-grid">
+                                  <div className="form-group">
+                                    <label>Name *</label>
+                                    <input
+                                      type="text"
+                                      value={tower.name}
+                                      onChange={(e) => updateTower(towerIndex, 'name', e.target.value)}
+                                      placeholder="e.g., A, B, C or Tower 1"
+                                      required
+                                    />
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Tower Number</label>
+                                    <input
+                                      type="text"
+                                      value={tower.tower_number}
+                                      onChange={(e) => updateTower(towerIndex, 'tower_number', e.target.value)}
+                                      placeholder="e.g., A Wing, B Wing"
+                                    />
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Total Floors</label>
+                                    <input
+                                      type="number"
+                                      value={tower.total_floors}
+                                      onChange={(e) => updateTower(towerIndex, 'total_floors', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Booking Status</label>
+                                    <select
+                                      value={tower.booking_status}
+                                      onChange={(e) => updateTower(towerIndex, 'booking_status', e.target.value)}
+                                    >
+                                      <option value="available">Available</option>
+                                      <option value="sold_out">Sold Out</option>
+                                      <option value="booking_open">Booking Open</option>
+                                    </select>
+                                  </div>
+                                  <div className="form-group">
+                                    <label>
+                                      <input
+                                        type="checkbox"
+                                        checked={tower.is_active}
+                                        onChange={(e) => updateTower(towerIndex, 'is_active', e.target.checked)}
+                                      />
+                                      Is Active
+                                    </label>
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Order</label>
+                                    <input
+                                      type="number"
+                                      value={tower.order}
+                                      onChange={(e) => updateTower(towerIndex, 'order', parseInt(e.target.value))}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Tower Flats */}
+                                <div className="nested-subsection">
+                                  <h6>Flats</h6>
+                                  <table className="nested-table">
+                                    <thead>
+                                      <tr>
+                                        <th>FLAT NUMBER</th>
+                                        <th>FLOOR</th>
+                                        <th>FLAT TYPE</th>
+                                        <th>AREA</th>
+                                        <th>PRICE</th>
+                                        <th>AVAILABILITY</th>
+                                        <th>ORDER</th>
+                                        <th>DELETE?</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {tower.flats.map((flat, flatIndex) => (
+                                        <tr key={flatIndex}>
+                                          <td>
+                                            <input
+                                              type="text"
+                                              value={flat.flat_number}
+                                              onChange={(e) => updateTowerFlat(towerIndex, flatIndex, 'flat_number', e.target.value)}
+                                              placeholder="101, 102, etc."
+                                            />
+                                          </td>
+                                          <td>
+                                            <input
+                                              type="text"
+                                              value={flat.floor}
+                                              onChange={(e) => updateTowerFlat(towerIndex, flatIndex, 'floor', e.target.value)}
+                                              placeholder="1, 2, 3, etc."
+                                            />
+                                          </td>
+                                          <td>
+                                            <select
+                                              value={flat.flat_type}
+                                              onChange={(e) => updateTowerFlat(towerIndex, flatIndex, 'flat_type', e.target.value)}
+                                            >
+                                              <option value="">Select</option>
+                                              <option value="1bhk">1 BHK</option>
+                                              <option value="2bhk">2 BHK</option>
+                                              <option value="3bhk">3 BHK</option>
+                                              <option value="4bhk">4 BHK</option>
+                                            </select>
+                                          </td>
+                                          <td>
+                                            <input
+                                              type="text"
+                                              value={flat.area}
+                                              onChange={(e) => updateTowerFlat(towerIndex, flatIndex, 'area', e.target.value)}
+                                              placeholder="e.g., 1200 sq ft"
+                                            />
+                                          </td>
+                                          <td>
+                                            <input
+                                              type="number"
+                                              value={flat.price}
+                                              onChange={(e) => updateTowerFlat(towerIndex, flatIndex, 'price', e.target.value)}
+                                              placeholder="Price"
+                                            />
+                                          </td>
+                                          <td>
+                                            <select
+                                              value={flat.availability}
+                                              onChange={(e) => updateTowerFlat(towerIndex, flatIndex, 'availability', e.target.value)}
+                                            >
+                                              <option value="available">Available</option>
+                                              <option value="sold">Sold</option>
+                                              <option value="reserved">Reserved</option>
+                                            </select>
+                                          </td>
+                                          <td>
+                                            <input
+                                              type="number"
+                                              value={flat.order}
+                                              onChange={(e) => updateTowerFlat(towerIndex, flatIndex, 'order', parseInt(e.target.value))}
+                                              style={{ width: '60px' }}
+                                            />
+                                          </td>
+                                          <td>
+                                            <button
+                                              type="button"
+                                              className="btn-remove"
+                                              onClick={() => removeTowerFlat(towerIndex, flatIndex)}
+                                            >
+                                              ×
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                  <button
+                                    type="button"
+                                    className="btn-add-another"
+                                    onClick={() => addTowerFlat(towerIndex)}
+                                  >
+                                    + Add another Flat
+                                  </button>
+                                </div>
+
+                                {/* Tower Amenities */}
+                                <div className="nested-subsection">
+                                  <h6>Tower Amenities</h6>
+                                  <table className="nested-table">
+                                    <thead>
+                                      <tr>
+                                        <th>NAME</th>
+                                        <th>ICON</th>
+                                        <th>ORDER</th>
+                                        <th>DELETE?</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {tower.amenities.map((amenity, amenityIndex) => (
+                                        <tr key={amenityIndex}>
+                                          <td>
+                                            <input
+                                              type="text"
+                                              value={amenity.name}
+                                              onChange={(e) => updateTowerAmenity(towerIndex, amenityIndex, 'name', e.target.value)}
+                                              placeholder="Amenity name"
+                                            />
+                                          </td>
+                                          <td>
+                                            <input
+                                              type="text"
+                                              value={amenity.icon}
+                                              onChange={(e) => updateTowerAmenity(towerIndex, amenityIndex, 'icon', e.target.value)}
+                                              placeholder="Icon/Emoji"
+                                            />
+                                          </td>
+                                          <td>
+                                            <input
+                                              type="number"
+                                              value={amenity.order}
+                                              onChange={(e) => updateTowerAmenity(towerIndex, amenityIndex, 'order', parseInt(e.target.value))}
+                                              style={{ width: '60px' }}
+                                            />
+                                          </td>
+                                          <td>
+                                            <button
+                                              type="button"
+                                              className="btn-remove"
+                                              onClick={() => removeTowerAmenity(towerIndex, amenityIndex)}
+                                            >
+                                              ×
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                  <button
+                                    type="button"
+                                    className="btn-add-another"
+                                    onClick={() => addTowerAmenity(towerIndex)}
+                                  >
+                                    + Add another Tower amenity
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              className="btn-add-another"
+                              onClick={addTower}
+                            >
+                              + Add another Tower
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="form-actions">
+                        <button type="submit" className="btn btn-primary" disabled={loading}>
+                          {loading ? 'Saving...' : editingProject ? 'Update Project' : 'Create Project'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setShowProjectForm(false)
+                            setEditingProject(null)
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              <div className="projects-table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Type</th>
+                      <th>Location</th>
+                      <th>Status</th>
+                      <th>Hot</th>
+                      <th>Featured</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projects.length > 0 ? (
+                      projects.map((project) => (
+                        <tr key={project.id}>
+                          <td>{project.title}</td>
+                          <td>{project.property_type}</td>
+                          <td>{project.location}</td>
+                          <td>{project.project_status || '-'}</td>
+                          <td>{project.is_hot ? '✓' : '-'}</td>
+                          <td>{project.featured ? '✓' : '-'}</td>
+                          <td>
+                            <button
+                              className="btn btn-sm"
+                              onClick={() => handleEditProject(project)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleDeleteProject(project.id)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="7" className="no-data">No projects found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Leads Tab */}
+          {activeTab === 'leads' && (
+            <div className="leads-tab">
+              <div className="tab-header">
+                <h2>Leads Management</h2>
+                <div className="period-filter">
+                  <button
+                    className={selectedPeriod === 'today' ? 'active' : ''}
+                    onClick={() => setSelectedPeriod('today')}
+                  >
+                    Today
+                  </button>
+                  <button
+                    className={selectedPeriod === 'yesterday' ? 'active' : ''}
+                    onClick={() => setSelectedPeriod('yesterday')}
+                  >
+                    Yesterday
+                  </button>
+                  <button
+                    className={selectedPeriod === 'week' ? 'active' : ''}
+                    onClick={() => setSelectedPeriod('week')}
+                  >
+                    Last Week
+                  </button>
+                  <button
+                    className={selectedPeriod === 'month' ? 'active' : ''}
+                    onClick={() => setSelectedPeriod('month')}
+                  >
+                    Last Month
+                  </button>
+                  <button
+                    className={selectedPeriod === 'all' ? 'active' : ''}
+                    onClick={() => setSelectedPeriod('all')}
+                  >
+                    All
+                  </button>
+                </div>
+              </div>
+
+              <div className="leads-table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Project</th>
+                      <th>Subject</th>
+                      <th>Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.length > 0 ? (
+                      leads.map((lead) => (
+                        <tr key={lead.id} className={lead.read ? '' : 'unread'}>
+                          <td>{lead.name}</td>
+                          <td>{lead.email || '-'}</td>
+                          <td>{lead.phone}</td>
+                          <td>{lead.project_title || '-'}</td>
+                          <td>{lead.subject}</td>
+                          <td>{new Date(lead.created_at).toLocaleDateString()}</td>
+                          <td>
+                            <span className={`status-badge ${lead.read ? 'read' : 'unread'}`}>
+                              {lead.read ? 'Read' : 'Unread'}
+                            </span>
+                          </td>
+                          <td>
+                            {!lead.read && (
+                              <button
+                                className="btn btn-sm"
+                                onClick={() => handleMarkRead(lead.id)}
+                              >
+                                Mark Read
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => {
+                                alert(`Message: ${lead.message || 'No message'}`)
+                              }}
+                            >
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="8" className="no-data">No leads found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default AdminDashboard
