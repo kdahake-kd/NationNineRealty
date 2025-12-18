@@ -24,38 +24,27 @@ api.interceptors.request.use(
   }
 )
 
-// Add response interceptor to handle token refresh
+// Add response interceptor to handle token expiration
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config
-    
-    // If 401 and not already retried, try to refresh token
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
+    // If 401 (Unauthorized), token is expired or invalid
+    // User needs to login again using OTP
+    if (error.response?.status === 401) {
+      // Check admin status BEFORE clearing storage
+      const wasAdminLogin = localStorage.getItem('is_admin_login') === 'true'
       
-      try {
-        const refreshToken = localStorage.getItem('refresh_token')
-        if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/auth/token/refresh/`, {
-            refresh: refreshToken
-          })
-          
-          const { access } = response.data
-          localStorage.setItem('access_token', access)
-          
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${access}`
-          return api(originalRequest)
-        }
-      } catch (refreshError) {
-        // Refresh failed, logout user
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('user')
-        localStorage.removeItem('login_time')
-        window.location.href = '/login'
-        return Promise.reject(refreshError)
+      // Clear all auth data
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user')
+      localStorage.removeItem('login_time')
+      localStorage.removeItem('is_admin_login')
+      
+      // Redirect to login page
+      // Check if we're already on login page to avoid redirect loop
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = wasAdminLogin ? '/login?admin=true' : '/login'
       }
     }
     
@@ -131,8 +120,12 @@ export const achievementsAPI = {
 }
 
 export const authAPI = {
+  // User auth (OTP based)
   sendOTP: (data) => api.post('/auth/send-otp/', data),
   verifyOTP: (data) => api.post('/auth/verify-otp/', data),
+  completeRegistration: (data) => api.post('/auth/complete-registration/', data),
+  // Admin auth (username/password)
+  adminLogin: (data) => api.post('/admin/login/', data),
 }
 
 export const adminAPI = {

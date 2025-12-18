@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { authAPI } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import './Auth.css'
@@ -17,38 +17,46 @@ const Signup = () => {
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isSigningUp, setIsSigningUp] = useState(false)
 
   // Redirect if already logged in
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isSigningUp) {
       navigate('/')
     }
-  }, [isAuthenticated, navigate])
+  }, [isAuthenticated, isSigningUp, navigate])
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    const { name, value } = e.target
+    if (name === 'mobile') {
+      setFormData({ ...formData, [name]: value.replace(/\D/g, '').slice(0, 10) })
+    } else {
+      setFormData({ ...formData, [name]: value })
+    }
     setError('')
   }
 
   const handleSendOTP = async (e) => {
     e.preventDefault()
+    
+    if (!formData.mobile || formData.mobile.length !== 10) {
+      setError('Please enter a valid 10-digit mobile number')
+      return
+    }
+    
+    if (!formData.first_name || !formData.last_name) {
+      setError('Please fill all required fields')
+      return
+    }
+    
     setLoading(true)
     setError('')
 
-    if (!formData.mobile || !formData.first_name || !formData.last_name) {
-      setError('Please fill all required fields')
-      setLoading(false)
-      return
-    }
-
     try {
-      await authAPI.sendOTP({
-        mobile: formData.mobile,
-        purpose: 'signup'
-      })
+      await authAPI.sendOTP({ mobile: formData.mobile, purpose: 'signup' })
       setStep(2)
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to send OTP. Please try again.')
+      setError(error.response?.data?.error || 'Failed to send OTP')
     } finally {
       setLoading(false)
     }
@@ -58,25 +66,28 @@ const Signup = () => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setIsSigningUp(true)
 
     try {
-      const response = await authAPI.verifyOTP({
+      // First verify OTP
+      await authAPI.verifyOTP({ mobile: formData.mobile, otp_code: otp })
+      
+      // Then complete registration
+      const response = await authAPI.completeRegistration({
         mobile: formData.mobile,
-        otp_code: otp,
-        purpose: 'signup',
         first_name: formData.first_name,
         last_name: formData.last_name,
         email: formData.email || null
       })
       
-      // Store user data using AuthContext with tokens
-      const tokens = response.data.tokens || null
-      login(response.data.user, tokens)
-      
-      // Redirect to home
-      navigate('/')
+      login(response.data.user, response.data.access_token, false)
+      setTimeout(() => {
+        setIsSigningUp(false)
+        navigate('/', { replace: true })
+      }, 50)
     } catch (error) {
-      setError(error.response?.data?.error || 'Invalid OTP. Please try again.')
+      setError(error.response?.data?.error || 'Signup failed')
+      setIsSigningUp(false)
     } finally {
       setLoading(false)
     }
@@ -85,7 +96,7 @@ const Signup = () => {
   return (
     <div className="auth-page">
       <div className="auth-container">
-        <h2>Sign Up</h2>
+        <h2>{step === 1 ? 'Sign Up' : 'Verify OTP'}</h2>
         
         {step === 1 ? (
           <form onSubmit={handleSendOTP} className="auth-form">
@@ -130,49 +141,42 @@ const Signup = () => {
                 placeholder="Mobile Number *"
                 value={formData.mobile}
                 onChange={handleChange}
-                required
-                pattern="[0-9]{10}"
                 maxLength="10"
+                required
               />
             </div>
             
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? 'Sending OTP...' : 'Send OTP'}
             </button>
+            
+            <p className="auth-link">
+              Already have an account? <Link to="/login">Login</Link>
+            </p>
           </form>
         ) : (
           <form onSubmit={handleVerifyOTP} className="auth-form">
             {error && <div className="error-message">{error}</div>}
             
-            <p className="otp-info">OTP has been sent to {formData.mobile}</p>
+            <p className="otp-info">OTP sent to {formData.mobile}</p>
             
             <div className="form-group">
               <input
                 type="text"
-                name="otp"
-                placeholder="Enter OTP"
+                placeholder="Enter 6-digit OTP"
                 value={otp}
-                onChange={(e) => {
-                  setOtp(e.target.value)
-                  setError('')
-                }}
-                required
+                onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }}
                 maxLength="6"
-                pattern="[0-9]{6}"
+                required
               />
             </div>
             
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Verifying...' : 'Verify OTP'}
+              {loading ? 'Verifying...' : 'Verify & Sign Up'}
             </button>
             
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setStep(1)}
-              disabled={loading}
-            >
-              Change Number
+            <button type="button" className="btn btn-secondary" onClick={() => setStep(1)} disabled={loading}>
+              Change Details
             </button>
           </form>
         )}
@@ -182,4 +186,3 @@ const Signup = () => {
 }
 
 export default Signup
-

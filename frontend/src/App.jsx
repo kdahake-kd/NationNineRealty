@@ -1,8 +1,10 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import AdminRoute from './components/AdminRoute'
+import LoginModal from './components/LoginModal'
+import { useAuth } from './contexts/AuthContext'
 // User pages
 import Home from './user/pages/Home'
 import About from './user/pages/About'
@@ -23,7 +25,31 @@ import AdminDashboard from './admin/pages/AdminDashboard'
 
 function AppContent() {
   const location = useLocation()
+  const { isAuthenticated } = useAuth()
+  const [showLoginModal, setShowLoginModal] = useState(false)
   const isAdminRoute = location.pathname.startsWith('/admin')
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup'
+  
+  // Auto-show login modal after 10 seconds for non-authenticated users
+  useEffect(() => {
+    // Don't show on admin routes, auth pages, or if already authenticated
+    if (isAdminRoute || isAuthPage || isAuthenticated) {
+      return
+    }
+    
+    // Check if modal was already shown in this session
+    const modalShown = sessionStorage.getItem('login_modal_shown')
+    if (modalShown) {
+      return
+    }
+    
+    const timer = setTimeout(() => {
+      setShowLoginModal(true)
+      sessionStorage.setItem('login_modal_shown', 'true')
+    }, 10000) // 10 seconds
+    
+    return () => clearTimeout(timer)
+  }, [isAdminRoute, isAuthPage, isAuthenticated])
   
   return (
     <div className="App">
@@ -53,6 +79,12 @@ function AppContent() {
         />
       </Routes>
       {!isAdminRoute && <Footer />}
+      
+      {/* Auto-popup login modal for non-authenticated users */}
+      <LoginModal 
+        isOpen={showLoginModal} 
+        onClose={() => setShowLoginModal(false)} 
+      />
     </div>
   )
 }
@@ -66,4 +98,3 @@ function App() {
 }
 
 export default App
-

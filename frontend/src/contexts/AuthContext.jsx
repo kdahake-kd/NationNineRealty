@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 
 const AuthContext = createContext(null)
 
-const SESSION_DURATION = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000 // 30 days (1 month) in milliseconds
 const STORAGE_KEY = 'user'
 const LOGIN_TIME_KEY = 'login_time'
 const ACCESS_TOKEN_KEY = 'access_token'
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
         const now = Date.now()
         const timeElapsed = now - loginTimestamp
 
-        // Check if session is still valid (within 24 hours)
+        // Check if session is still valid (within 1 month)
         if (timeElapsed < SESSION_DURATION) {
           setUser(userData)
           setIsAuthenticated(true)
@@ -93,23 +93,22 @@ export const AuthProvider = ({ children }) => {
     return () => clearInterval(checkSession)
   }, [isAuthenticated, handleLogout])
 
-  const handleLogin = useCallback((userData, tokens = null, isAdminLogin = false) => {
+  const handleLogin = useCallback((userData, accessToken = null, isAdminLogin = false) => {
     try {
       const now = Date.now()
       localStorage.setItem(STORAGE_KEY, JSON.stringify(userData))
       localStorage.setItem(LOGIN_TIME_KEY, now.toString())
       localStorage.setItem(IS_ADMIN_LOGIN_KEY, isAdminLogin.toString())
       
-      // Store JWT tokens if provided
-      if (tokens) {
-        localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access)
-        localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh)
+      // Store access token if provided
+      if (accessToken) {
+        localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
       }
       
       setUser(userData)
       setIsAuthenticated(true)
 
-      // Set auto-logout timer
+      // Set auto-logout timer (1 month)
       setTimeout(() => {
         handleLogout()
       }, SESSION_DURATION)
@@ -144,11 +143,15 @@ export const AuthProvider = ({ children }) => {
     return localStorage.getItem(IS_ADMIN_LOGIN_KEY) === 'true'
   }, [])
 
+  // Check if user is admin (Django staff/superuser or has is_admin flag)
+  const isAdmin = user?.is_admin === true || user?.is_admin === 'true' || 
+                  user?.is_staff === true || user?.is_superuser === true
+
   const value = {
     user,
     isAuthenticated,
     isLoading,
-    isAdmin: user?.is_admin === true || user?.is_admin === 'true',
+    isAdmin,
     isAdminLogin: getIsAdminLogin(),
     login: handleLogin,
     logout: handleLogout,

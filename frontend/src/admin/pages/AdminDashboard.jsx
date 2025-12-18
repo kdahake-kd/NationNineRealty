@@ -5,9 +5,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import './AdminDashboard.css'
 
 const AdminDashboard = () => {
-  const { isAdmin, logout } = useAuth()
+  const { logout, user } = useAuth()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('dashboard')
+  
   const [stats, setStats] = useState(null)
   const [leads, setLeads] = useState([])
   const [projects, setProjects] = useState([])
@@ -22,7 +23,6 @@ const AdminDashboard = () => {
   const [editingProject, setEditingProject] = useState(null)
   const [projectFormData, setProjectFormData] = useState({
     title: '',
-    id_number: '',
     property_type: 'residential',
     project_status: '',
     location: '',
@@ -33,7 +33,7 @@ const AdminDashboard = () => {
     description: '',
     about_listing: '',
     price: '',
-    available_flat_types: '',
+    available_flat_types: [],
     rera_number: '',
     land_area: '',
     amenities_area: '',
@@ -44,12 +44,23 @@ const AdminDashboard = () => {
     featured: false,
     cover_image: null,
   })
+  const [orderErrors, setOrderErrors] = useState({
+    projectImages: {},
+    projectAmenities: {},
+    towers: {}
+  })
   const [projectImages, setProjectImages] = useState([{ image: null, title: '', category: 'other', order: 0 }])
-  const [projectAmenities, setProjectAmenities] = useState([{ name: '', icon: '', order: 0 }])
+  const [projectAmenities, setProjectAmenities] = useState([{ name: '', order: 0 }])
   const [towers, setTowers] = useState([{
     name: '',
     tower_number: '',
     total_floors: '',
+    parking_floors: '',
+    residential_floors: '',
+    refugee_floors: '',
+    per_floor_flats: '',
+    total_lifts: '',
+    total_stairs: '',
     booking_status: 'available',
     is_active: true,
     order: 0,
@@ -87,13 +98,9 @@ const AdminDashboard = () => {
   }, [showProjectForm])
 
   useEffect(() => {
-    // Check if user is logged in as admin
-    if (!isAdmin) {
-      navigate('/login?admin=true')
-      return
-    }
+    // AdminRoute already handles auth check, just fetch data
     fetchInitialData()
-  }, [navigate, isAdmin])
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'dashboard') {
@@ -186,11 +193,160 @@ const AdminDashboard = () => {
     setSuccess('')
 
     try {
+      // Validate duplicate orders
+      const imageOrders = projectImages.map(img => parseInt(img.order)).filter(o => !isNaN(o))
+      const amenityOrders = projectAmenities.map(a => parseInt(a.order)).filter(o => !isNaN(o))
+      const towerOrders = towers.map(t => parseInt(t.order)).filter(o => !isNaN(o))
+      
+      if (new Set(imageOrders).size !== imageOrders.length) {
+        setError('Duplicate order numbers found in project images. Please use unique order numbers.')
+        setLoading(false)
+        return
+      }
+      if (new Set(amenityOrders).size !== amenityOrders.length) {
+        setError('Duplicate order numbers found in project amenities. Please use unique order numbers.')
+        setLoading(false)
+        return
+      }
+      if (new Set(towerOrders).size !== towerOrders.length) {
+        setError('Duplicate order numbers found in towers. Please use unique order numbers.')
+        setLoading(false)
+        return
+      }
+
+      // Validate mandatory fields
+      if (!projectFormData.title?.trim()) {
+        setError('Project Title is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.property_type) {
+        setError('Property Type is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.project_status) {
+        setError('Project Status is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.description?.trim()) {
+        setError('Description is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.location?.trim()) {
+        setError('Location is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.city_name?.trim() && !projectFormData.city) {
+        setError('City is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.state?.trim()) {
+        setError('State is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.map_location?.trim()) {
+        setError('Map Location is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.rera_number?.trim()) {
+        setError('RERA Number is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.land_area?.trim()) {
+        setError('Land Area is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.amenities_area?.trim()) {
+        setError('Amenities Area is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.total_units) {
+        setError('Total Units is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.total_towers) {
+        setError('Total Towers is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.developer_name?.trim()) {
+        setError('Developer Name is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.cover_image && !editingProject) {
+        setError('Cover Image is mandatory')
+        setLoading(false)
+        return
+      }
+      if (!projectFormData.price) {
+        setError('Price is mandatory')
+        setLoading(false)
+        return
+      }
+      
+      // Validate project images - at least one image required
+      const validImages = projectImages.filter(img => img.image)
+      if (validImages.length === 0) {
+        setError('At least one project image is mandatory')
+        setLoading(false)
+        return
+      }
+
+      // Validate project amenities - all mandatory
+      const validAmenities = projectAmenities.filter(a => a.name?.trim())
+      if (validAmenities.length === 0) {
+        setError('At least one project amenity is mandatory')
+        setLoading(false)
+        return
+      }
+      for (const amenity of projectAmenities) {
+        if (amenity.name?.trim() && !amenity.name.trim()) {
+          setError('All project amenities must have a name')
+          setLoading(false)
+          return
+        }
+      }
+
+      // Validate towers based on property type
+      if (projectFormData.property_type === 'residential') {
+        if (towers.length === 0) {
+          setError('At least one tower is mandatory for residential projects')
+          setLoading(false)
+          return
+        }
+        for (const tower of towers) {
+          if (!tower.name?.trim()) {
+            setError('All towers must have a name for residential projects')
+            setLoading(false)
+            return
+          }
+          if (!tower.total_floors) {
+            setError('All towers must have total floors for residential projects')
+            setLoading(false)
+            return
+          }
+        }
+      }
+
       // Step 1: Create/Update Project
       const formData = new FormData()
       Object.keys(projectFormData).forEach(key => {
         if (key === 'cover_image' && projectFormData[key]) {
           formData.append(key, projectFormData[key])
+        } else if (key === 'available_flat_types' && Array.isArray(projectFormData[key])) {
+          formData.append(key, projectFormData[key].join(','))
         } else if (projectFormData[key] !== null && projectFormData[key] !== '') {
           formData.append(key, projectFormData[key])
         }
@@ -224,7 +380,7 @@ const AdminDashboard = () => {
           await adminAPI.createProjectAmenity({
             project: projectId,
             name: amenity.name,
-            icon: amenity.icon || '',
+            icon: '',
             order: amenity.order
           })
         }
@@ -238,6 +394,12 @@ const AdminDashboard = () => {
             name: tower.name,
             tower_number: tower.tower_number || '',
             total_floors: tower.total_floors || '',
+            parking_floors: tower.parking_floors || 0,
+            residential_floors: tower.residential_floors || 0,
+            refugee_floors: tower.refugee_floors || 0,
+            per_floor_flats: tower.per_floor_flats || 0,
+            total_lifts: tower.total_lifts || 0,
+            total_stairs: tower.total_stairs || 0,
             booking_status: tower.booking_status,
             is_active: tower.is_active,
             order: tower.order
@@ -282,7 +444,6 @@ const AdminDashboard = () => {
       setEditingProject(null)
       setProjectFormData({
         title: '',
-        id_number: '',
         property_type: 'residential',
         project_status: '',
         location: '',
@@ -293,7 +454,7 @@ const AdminDashboard = () => {
         description: '',
         about_listing: '',
         price: '',
-        available_flat_types: '',
+        available_flat_types: [],
         rera_number: '',
         land_area: '',
         amenities_area: '',
@@ -305,11 +466,18 @@ const AdminDashboard = () => {
         cover_image: null,
       })
       setProjectImages([{ image: null, title: '', category: 'other', order: 0 }])
-      setProjectAmenities([{ name: '', icon: '', order: 0 }])
+      setProjectAmenities([{ name: '', order: 0 }])
+      setOrderErrors({ projectImages: {}, projectAmenities: {}, towers: {} })
       setTowers([{
         name: '',
         tower_number: '',
         total_floors: '',
+        parking_floors: '',
+        residential_floors: '',
+        refugee_floors: '',
+        per_floor_flats: '',
+        total_lifts: '',
+        total_stairs: '',
         booking_status: 'available',
         is_active: true,
         order: 0,
@@ -334,7 +502,6 @@ const AdminDashboard = () => {
     setEditingProject(project)
     setProjectFormData({
       title: project.title || '',
-      id_number: project.id_number || '',
       property_type: project.property_type || 'residential',
       project_status: project.project_status || '',
       location: project.location || '',
@@ -345,7 +512,7 @@ const AdminDashboard = () => {
       description: project.description || '',
       about_listing: project.about_listing || '',
       price: project.price || '',
-      available_flat_types: project.available_flat_types || '',
+      available_flat_types: project.available_flat_types ? (typeof project.available_flat_types === 'string' ? project.available_flat_types.split(',').map(ft => ft.trim()).filter(ft => ft) : project.available_flat_types) : [],
       rera_number: project.rera_number || '',
       land_area: project.land_area || '',
       amenities_area: project.amenities_area || '',
@@ -356,6 +523,7 @@ const AdminDashboard = () => {
       featured: project.featured || false,
       cover_image: null,
     })
+    setOrderErrors({ projectImages: {}, projectAmenities: {}, towers: {} })
     setShowProjectForm(true)
   }
 
@@ -393,10 +561,35 @@ const AdminDashboard = () => {
     const updated = [...projectImages]
     updated[index] = { ...updated[index], [field]: value }
     setProjectImages(updated)
+    
+    // Validate duplicate order for project images
+    if (field === 'order') {
+      const orderValue = parseInt(value)
+      const duplicateIndex = updated.findIndex((img, idx) => idx !== index && parseInt(img.order) === orderValue)
+      const newErrors = { ...orderErrors }
+      if (duplicateIndex !== -1) {
+        newErrors.projectImages[index] = `This order number is already used by another image`
+        newErrors.projectImages[duplicateIndex] = `This order number is already used by another image`
+      } else {
+        delete newErrors.projectImages[index]
+        // Clear error for the other item if it was the only duplicate
+        Object.keys(newErrors.projectImages).forEach(key => {
+          if (newErrors.projectImages[key] && key != index) {
+            const otherIndex = parseInt(key)
+            const otherOrder = parseInt(updated[otherIndex]?.order)
+            const hasOtherDuplicate = updated.some((img, idx) => idx !== otherIndex && parseInt(img.order) === otherOrder)
+            if (!hasOtherDuplicate) {
+              delete newErrors.projectImages[key]
+            }
+          }
+        })
+      }
+      setOrderErrors(newErrors)
+    }
   }
 
   const addProjectAmenity = () => {
-    setProjectAmenities([...projectAmenities, { name: '', icon: '', order: projectAmenities.length }])
+    setProjectAmenities([...projectAmenities, { name: '', order: projectAmenities.length }])
   }
 
   const removeProjectAmenity = (index) => {
@@ -407,6 +600,31 @@ const AdminDashboard = () => {
     const updated = [...projectAmenities]
     updated[index] = { ...updated[index], [field]: value }
     setProjectAmenities(updated)
+    
+    // Validate duplicate order for project amenities
+    if (field === 'order') {
+      const orderValue = parseInt(value)
+      const duplicateIndex = updated.findIndex((amenity, idx) => idx !== index && parseInt(amenity.order) === orderValue)
+      const newErrors = { ...orderErrors }
+      if (duplicateIndex !== -1) {
+        newErrors.projectAmenities[index] = `This order number is already used by another amenity`
+        newErrors.projectAmenities[duplicateIndex] = `This order number is already used by another amenity`
+      } else {
+        delete newErrors.projectAmenities[index]
+        // Clear error for the other item if it was the only duplicate
+        Object.keys(newErrors.projectAmenities).forEach(key => {
+          if (newErrors.projectAmenities[key] && key != index) {
+            const otherIndex = parseInt(key)
+            const otherOrder = parseInt(updated[otherIndex]?.order)
+            const hasOtherDuplicate = updated.some((amenity, idx) => idx !== otherIndex && parseInt(amenity.order) === otherOrder)
+            if (!hasOtherDuplicate) {
+              delete newErrors.projectAmenities[key]
+            }
+          }
+        })
+      }
+      setOrderErrors(newErrors)
+    }
   }
 
   const addTower = () => {
@@ -414,6 +632,12 @@ const AdminDashboard = () => {
       name: '',
       tower_number: '',
       total_floors: '',
+      parking_floors: '',
+      residential_floors: '',
+      refugee_floors: '',
+      per_floor_flats: '',
+      total_lifts: '',
+      total_stairs: '',
       booking_status: 'available',
       is_active: true,
       order: towers.length,
@@ -430,6 +654,31 @@ const AdminDashboard = () => {
     const updated = [...towers]
     updated[index] = { ...updated[index], [field]: value }
     setTowers(updated)
+    
+    // Validate duplicate order for towers
+    if (field === 'order') {
+      const orderValue = parseInt(value)
+      const duplicateIndex = updated.findIndex((tower, idx) => idx !== index && parseInt(tower.order) === orderValue)
+      const newErrors = { ...orderErrors }
+      if (duplicateIndex !== -1) {
+        newErrors.towers[index] = `This order number is already used by another tower`
+        newErrors.towers[duplicateIndex] = `This order number is already used by another tower`
+      } else {
+        delete newErrors.towers[index]
+        // Clear error for the other item if it was the only duplicate
+        Object.keys(newErrors.towers).forEach(key => {
+          if (newErrors.towers[key] && key != index) {
+            const otherIndex = parseInt(key)
+            const otherOrder = parseInt(updated[otherIndex]?.order)
+            const hasOtherDuplicate = updated.some((tower, idx) => idx !== otherIndex && parseInt(tower.order) === otherOrder)
+            if (!hasOtherDuplicate) {
+              delete newErrors.towers[key]
+            }
+          }
+        })
+      }
+      setOrderErrors(newErrors)
+    }
   }
 
   const addTowerFlat = (towerIndex) => {
@@ -466,10 +715,6 @@ const AdminDashboard = () => {
     const updated = [...towers]
     updated[towerIndex].amenities[amenityIndex] = { ...updated[towerIndex].amenities[amenityIndex], [field]: value }
     setTowers(updated)
-  }
-
-  if (loading && !stats && activeTab === 'dashboard') {
-    return <div className="admin-loading">Loading dashboard...</div>
   }
 
   return (
@@ -593,11 +838,17 @@ const AdminDashboard = () => {
                       cover_image: null,
                     })
                     setProjectImages([{ image: null, title: '', category: 'other', order: 0 }])
-                    setProjectAmenities([{ name: '', icon: '', order: 0 }])
+                    setProjectAmenities([{ name: '', order: 0 }])
                     setTowers([{
                       name: '',
                       tower_number: '',
                       total_floors: '',
+                      parking_floors: '',
+                      residential_floors: '',
+                      refugee_floors: '',
+                      per_floor_flats: '',
+                      total_lifts: '',
+                      total_stairs: '',
                       booking_status: 'available',
                       is_active: true,
                       order: 0,
@@ -673,17 +924,7 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="form-group">
-                              <label>ID Number</label>
-                              <input
-                                type="text"
-                                name="id_number"
-                                value={projectFormData.id_number}
-                                onChange={handleProjectFormChange}
-                              />
-                            </div>
-
-                            <div className="form-group">
-                              <label>Property Type *</label>
+                              <label>Property Type <span style={{ color: 'red' }}>*</span></label>
                               <select
                                 name="property_type"
                                 value={projectFormData.property_type}
@@ -697,11 +938,12 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="form-group">
-                              <label>Project Status</label>
+                              <label>Project Status <span style={{ color: 'red' }}>*</span></label>
                               <select
                                 name="project_status"
                                 value={projectFormData.project_status}
                                 onChange={handleProjectFormChange}
+                                required
                               >
                                 <option value="">Select Status</option>
                                 <option value="pre_launch">Pre Launch</option>
@@ -713,7 +955,7 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="form-group full-width">
-                              <label>Description *</label>
+                              <label>Description <span style={{ color: 'red' }}>*</span></label>
                               <textarea
                                 name="description"
                                 value={projectFormData.description}
@@ -745,7 +987,7 @@ const AdminDashboard = () => {
                         {expandedSections.location && (
                           <div className="form-grid">
                             <div className="form-group">
-                              <label>Location *</label>
+                              <label>Location <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="text"
                                 name="location"
@@ -756,7 +998,7 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="form-group">
-                              <label>City</label>
+                              <label>City <span style={{ color: 'red' }}>*</span></label>
                               <select
                                 name="city"
                                 value={projectFormData.city}
@@ -781,7 +1023,7 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="form-group">
-                              <label>State</label>
+                              <label>State <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="text"
                                 name="state"
@@ -791,7 +1033,7 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="form-group full-width">
-                              <label>Map Location</label>
+                              <label>Map Location <span style={{ color: 'red' }}>*</span></label>
                               <textarea
                                 name="map_location"
                                 value={projectFormData.map_location}
@@ -814,14 +1056,25 @@ const AdminDashboard = () => {
                           <div className="form-grid">
                             <div className="form-group full-width">
                               <label>Available Flat Types</label>
-                              <input
-                                type="text"
-                                name="available_flat_types"
-                                value={projectFormData.available_flat_types}
-                                onChange={handleProjectFormChange}
-                                placeholder="Comma-separated flat types: 1bhk, 2bhk, 3bhk"
-                              />
-                              <small>Comma-separated flat types: 1bhk, 2bhk, 3bhk</small>
+                              <div className="checkbox-group">
+                                {['1bhk', '1.5bhk', '2bhk', '2.5bhk', '3bhk', '3.5bhk', '4bhk', '4.5bhk', '5bhk', '5.5bhk'].map(flatType => (
+                                  <label key={flatType} className="checkbox-label">
+                                    <input
+                                      type="checkbox"
+                                      checked={projectFormData.available_flat_types.includes(flatType)}
+                                      onChange={(e) => {
+                                        const current = projectFormData.available_flat_types || []
+                                        if (e.target.checked) {
+                                          setProjectFormData({ ...projectFormData, available_flat_types: [...current, flatType] })
+                                        } else {
+                                          setProjectFormData({ ...projectFormData, available_flat_types: current.filter(ft => ft !== flatType) })
+                                        }
+                                      }}
+                                    />
+                                    <span>{flatType.toUpperCase()}</span>
+                                  </label>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -836,64 +1089,70 @@ const AdminDashboard = () => {
                         {expandedSections.projectDetails && (
                           <div className="form-grid">
                             <div className="form-group">
-                              <label>RERA Number</label>
+                              <label>RERA Number <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="text"
                                 name="rera_number"
                                 value={projectFormData.rera_number}
                                 onChange={handleProjectFormChange}
+                                required
                               />
                             </div>
 
                             <div className="form-group">
-                              <label>Land Area</label>
+                              <label>Land Area <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="text"
                                 name="land_area"
                                 value={projectFormData.land_area}
                                 onChange={handleProjectFormChange}
                                 placeholder="e.g., 2.2 ACRES"
+                                required
                               />
                             </div>
 
                             <div className="form-group">
-                              <label>Amenities Area</label>
+                              <label>Amenities Area <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="text"
                                 name="amenities_area"
                                 value={projectFormData.amenities_area}
                                 onChange={handleProjectFormChange}
                                 placeholder="e.g., 25K SQ FT"
+                                required
                               />
                             </div>
 
                             <div className="form-group">
-                              <label>Total Units</label>
+                              <label>Total Units <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="number"
                                 name="total_units"
                                 value={projectFormData.total_units}
                                 onChange={handleProjectFormChange}
+                                required
                               />
                             </div>
 
                             <div className="form-group">
-                              <label>Total Towers</label>
+                              <label>Total Towers <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="number"
                                 name="total_towers"
                                 value={projectFormData.total_towers}
                                 onChange={handleProjectFormChange}
+                                required
                               />
                             </div>
 
                             <div className="form-group">
-                              <label>Developer Name</label>
+                              <label>Developer Name <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="text"
                                 name="developer_name"
                                 value={projectFormData.developer_name}
                                 onChange={handleProjectFormChange}
+                                required
                               />
                             </div>
                           </div>
@@ -909,7 +1168,7 @@ const AdminDashboard = () => {
                         {expandedSections.media && (
                           <div className="form-grid">
                             <div className="form-group full-width">
-                              <label>Cover Image {!editingProject && '*'}</label>
+                              <label>Cover Image <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="file"
                                 name="cover_image"
@@ -920,10 +1179,11 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="form-group">
-                              <label>Price (₹)</label>
+                              <label>Price (₹) <span style={{ color: 'red' }}>*</span></label>
                               <input
                                 type="number"
                                 name="price"
+                                required
                                 value={projectFormData.price}
                                 onChange={handleProjectFormChange}
                                 step="0.01"
@@ -942,26 +1202,28 @@ const AdminDashboard = () => {
                         {expandedSections.settings && (
                           <div className="form-grid">
                             <div className="form-group">
-                              <label>
+                              <label className="checkbox-label-large">
                                 <input
                                   type="checkbox"
                                   name="featured"
                                   checked={projectFormData.featured}
                                   onChange={handleProjectFormChange}
+                                  className="large-checkbox"
                                 />
-                                Featured
+                                <span>Featured</span>
                               </label>
                             </div>
 
                             <div className="form-group">
-                              <label>
+                              <label className="checkbox-label-large">
                                 <input
                                   type="checkbox"
                                   name="is_hot"
                                   checked={projectFormData.is_hot}
                                   onChange={handleProjectFormChange}
+                                  className="large-checkbox"
                                 />
-                                Is hot (Mark as Hot property)
+                                <span>Is hot (Mark as Hot property)</span>
                               </label>
                             </div>
                           </div>
@@ -1027,7 +1289,13 @@ const AdminDashboard = () => {
                                         value={img.order}
                                         onChange={(e) => updateProjectImage(index, 'order', parseInt(e.target.value))}
                                         style={{ width: '60px' }}
+                                        className={orderErrors.projectImages[index] ? 'error-input' : ''}
                                       />
+                                      {orderErrors.projectImages[index] && (
+                                        <small style={{ color: 'red', display: 'block', fontSize: '0.75rem', marginTop: '4px' }}>
+                                          {orderErrors.projectImages[index]}
+                                        </small>
+                                      )}
                                     </td>
                                     <td>
                                       <button
@@ -1064,8 +1332,7 @@ const AdminDashboard = () => {
                             <table className="nested-table">
                               <thead>
                                 <tr>
-                                  <th>NAME</th>
-                                  <th>ICON</th>
+                                  <th>NAME *</th>
                                   <th>ORDER</th>
                                   <th>DELETE?</th>
                                 </tr>
@@ -1079,14 +1346,7 @@ const AdminDashboard = () => {
                                         value={amenity.name}
                                         onChange={(e) => updateProjectAmenity(index, 'name', e.target.value)}
                                         placeholder="Amenity name"
-                                      />
-                                    </td>
-                                    <td>
-                                      <input
-                                        type="text"
-                                        value={amenity.icon}
-                                        onChange={(e) => updateProjectAmenity(index, 'icon', e.target.value)}
-                                        placeholder="Icon/Emoji"
+                                        required
                                       />
                                     </td>
                                     <td>
@@ -1095,7 +1355,13 @@ const AdminDashboard = () => {
                                         value={amenity.order}
                                         onChange={(e) => updateProjectAmenity(index, 'order', parseInt(e.target.value))}
                                         style={{ width: '60px' }}
+                                        className={orderErrors.projectAmenities[index] ? 'error-input' : ''}
                                       />
+                                      {orderErrors.projectAmenities[index] && (
+                                        <small style={{ color: 'red', display: 'block', fontSize: '0.75rem', marginTop: '4px' }}>
+                                          {orderErrors.projectAmenities[index]}
+                                        </small>
+                                      )}
                                     </td>
                                     <td>
                                       <button
@@ -1172,6 +1438,60 @@ const AdminDashboard = () => {
                                     />
                                   </div>
                                   <div className="form-group">
+                                    <label>Parking Floors</label>
+                                    <input
+                                      type="number"
+                                      value={tower.parking_floors}
+                                      onChange={(e) => updateTower(towerIndex, 'parking_floors', e.target.value)}
+                                      placeholder="Number of parking floors"
+                                    />
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Residential Floors</label>
+                                    <input
+                                      type="number"
+                                      value={tower.residential_floors}
+                                      onChange={(e) => updateTower(towerIndex, 'residential_floors', e.target.value)}
+                                      placeholder="Number of residential floors"
+                                    />
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Refuge Floors</label>
+                                    <input
+                                      type="number"
+                                      value={tower.refugee_floors}
+                                      onChange={(e) => updateTower(towerIndex, 'refugee_floors', e.target.value)}
+                                      placeholder="Number of refuge floors"
+                                    />
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Per Floor Flats</label>
+                                    <input
+                                      type="number"
+                                      value={tower.per_floor_flats}
+                                      onChange={(e) => updateTower(towerIndex, 'per_floor_flats', e.target.value)}
+                                      placeholder="Number of flats per floor"
+                                    />
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Total Lifts</label>
+                                    <input
+                                      type="number"
+                                      value={tower.total_lifts}
+                                      onChange={(e) => updateTower(towerIndex, 'total_lifts', e.target.value)}
+                                      placeholder="Total number of lifts"
+                                    />
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Total Stairs</label>
+                                    <input
+                                      type="number"
+                                      value={tower.total_stairs}
+                                      onChange={(e) => updateTower(towerIndex, 'total_stairs', e.target.value)}
+                                      placeholder="Total number of stairs"
+                                    />
+                                  </div>
+                                  <div className="form-group">
                                     <label>Booking Status</label>
                                     <select
                                       value={tower.booking_status}
@@ -1183,13 +1503,14 @@ const AdminDashboard = () => {
                                     </select>
                                   </div>
                                   <div className="form-group">
-                                    <label>
+                                    <label className="checkbox-label-large">
                                       <input
                                         type="checkbox"
                                         checked={tower.is_active}
                                         onChange={(e) => updateTower(towerIndex, 'is_active', e.target.checked)}
+                                        className="large-checkbox"
                                       />
-                                      Is Active
+                                      <span>Is Active</span>
                                     </label>
                                   </div>
                                   <div className="form-group">
@@ -1198,7 +1519,13 @@ const AdminDashboard = () => {
                                       type="number"
                                       value={tower.order}
                                       onChange={(e) => updateTower(towerIndex, 'order', parseInt(e.target.value))}
+                                      className={orderErrors.towers[towerIndex] ? 'error-input' : ''}
                                     />
+                                    {orderErrors.towers[towerIndex] && (
+                                      <small style={{ color: 'red', display: 'block', fontSize: '0.75rem', marginTop: '4px' }}>
+                                        {orderErrors.towers[towerIndex]}
+                                      </small>
+                                    )}
                                   </div>
                                 </div>
 
@@ -1244,9 +1571,15 @@ const AdminDashboard = () => {
                                             >
                                               <option value="">Select</option>
                                               <option value="1bhk">1 BHK</option>
+                                              <option value="1.5bhk">1.5 BHK</option>
                                               <option value="2bhk">2 BHK</option>
+                                              <option value="2.5bhk">2.5 BHK</option>
                                               <option value="3bhk">3 BHK</option>
+                                              <option value="3.5bhk">3.5 BHK</option>
                                               <option value="4bhk">4 BHK</option>
+                                              <option value="4.5bhk">4.5 BHK</option>
+                                              <option value="5bhk">5 BHK</option>
+                                              <option value="5.5bhk">5.5 BHK</option>
                                             </select>
                                           </td>
                                           <td>
