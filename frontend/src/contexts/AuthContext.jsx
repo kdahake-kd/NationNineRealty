@@ -6,9 +6,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 
 const AuthContext = createContext(null)
 
-const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000 // 30 days (1 month) in milliseconds
+// Simple storage keys
 const STORAGE_KEY = 'user'
-const LOGIN_TIME_KEY = 'login_time'
 const ACCESS_TOKEN_KEY = 'access_token'
 const REFRESH_TOKEN_KEY = 'refresh_token'
 const IS_ADMIN_LOGIN_KEY = 'is_admin_login'
@@ -22,7 +21,6 @@ export const AuthProvider = ({ children }) => {
   const handleLogout = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY)
-      localStorage.removeItem(LOGIN_TIME_KEY)
       localStorage.removeItem(ACCESS_TOKEN_KEY)
       localStorage.removeItem(REFRESH_TOKEN_KEY)
       localStorage.removeItem(IS_ADMIN_LOGIN_KEY)
@@ -33,71 +31,41 @@ export const AuthProvider = ({ children }) => {
     }
   }, [])
 
-  // Load user from localStorage on mount
+  // Load user from localStorage on mount - SIMPLE: just check if tokens exist
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem(STORAGE_KEY)
-      const loginTime = localStorage.getItem(LOGIN_TIME_KEY)
       const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY)
 
-      // Check if we have both user data and access token
+      // Simple check: if we have user and token, user is authenticated
+      // Token expiration will be handled by API interceptor (401 response)
       if (storedUser && accessToken) {
         const userData = JSON.parse(storedUser)
-        const loginTimestamp = loginTime ? parseInt(loginTime, 10) : Date.now()
-        const now = Date.now()
-        const timeElapsed = now - loginTimestamp
-
-        // Check if session is still valid (within 1 month)
-        if (timeElapsed < SESSION_DURATION) {
-          setUser(userData)
-          setIsAuthenticated(true)
-          
-          // Set auto-logout timer for remaining time
-          const remainingTime = SESSION_DURATION - timeElapsed
-          setTimeout(() => {
-            handleLogout()
-          }, remainingTime)
-        } else {
-          // Session expired, clear storage
-          handleLogout()
-        }
+        setUser(userData)
+        setIsAuthenticated(true)
       } else if (storedUser && !accessToken) {
         // User data exists but no token - clear it
+        console.warn('AuthContext: User data exists but no token, clearing')
         handleLogout()
       }
     } catch (error) {
-      console.error('Error loading user from storage:', error)
-      handleLogout()
+      console.error('AuthContext: Error loading user from storage:', error)
+      if (error instanceof SyntaxError) {
+        console.error('AuthContext: JSON parse error, clearing invalid data')
+        handleLogout()
+      }
     } finally {
       setIsLoading(false)
     }
   }, [handleLogout])
 
-  // Check session validity periodically (every 5 minutes)
-  useEffect(() => {
-    if (!isAuthenticated) return
-
-    const checkSession = setInterval(() => {
-      const loginTime = localStorage.getItem(LOGIN_TIME_KEY)
-      if (loginTime) {
-        const loginTimestamp = parseInt(loginTime, 10)
-        const now = Date.now()
-        const timeElapsed = now - loginTimestamp
-
-        if (timeElapsed >= SESSION_DURATION) {
-          handleLogout()
-        }
-      }
-    }, 5 * 60 * 1000) // Check every 5 minutes
-
-    return () => clearInterval(checkSession)
-  }, [isAuthenticated, handleLogout])
+  // No periodic session check - token expiration is handled by API interceptor
+  // When API returns 401, interceptor will handle refresh or logout
 
   const handleLogin = useCallback((userData, accessToken = null, isAdminLogin = false) => {
     try {
-      const now = Date.now()
+      // Simple: just store tokens and user data
       localStorage.setItem(STORAGE_KEY, JSON.stringify(userData))
-      localStorage.setItem(LOGIN_TIME_KEY, now.toString())
       localStorage.setItem(IS_ADMIN_LOGIN_KEY, isAdminLogin.toString())
       
       // Store access token if provided
@@ -107,16 +75,13 @@ export const AuthProvider = ({ children }) => {
       
       setUser(userData)
       setIsAuthenticated(true)
-
-      // Set auto-logout timer (1 month)
-      setTimeout(() => {
-        handleLogout()
-      }, SESSION_DURATION)
+      
+      // No setTimeout - token expiration handled by API interceptor
     } catch (error) {
       console.error('Error saving user to storage:', error)
       throw error
     }
-  }, [handleLogout])
+  }, [])
 
   const updateUser = useCallback((userData) => {
     try {
@@ -125,18 +90,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Error updating user:', error)
     }
-  }, [])
-
-  const getRemainingSessionTime = useCallback(() => {
-    const loginTime = localStorage.getItem(LOGIN_TIME_KEY)
-    if (!loginTime) return 0
-    
-    const loginTimestamp = parseInt(loginTime, 10)
-    const now = Date.now()
-    const timeElapsed = now - loginTimestamp
-    const remaining = SESSION_DURATION - timeElapsed
-    
-    return Math.max(0, remaining)
   }, [])
 
   const getIsAdminLogin = useCallback(() => {
@@ -156,7 +109,6 @@ export const AuthProvider = ({ children }) => {
     login: handleLogin,
     logout: handleLogout,
     updateUser,
-    getRemainingSessionTime,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

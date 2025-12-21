@@ -28,24 +28,25 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // If 401 (Unauthorized), token is expired or invalid
-    // User needs to login again using OTP
+    // If 401 (Unauthorized), access token expired - logout
     if (error.response?.status === 401) {
-      // Check admin status BEFORE clearing storage
+      const currentPath = window.location.pathname
       const wasAdminLogin = localStorage.getItem('is_admin_login') === 'true'
       
-      // Clear all auth data
+      // Don't redirect if already on login page
+      if (currentPath.includes('/login')) {
+        return Promise.reject(error)
+      }
+      
+      // Access token expired - clear storage and redirect to login
+      console.warn('API Interceptor: Access token expired (401), logging out')
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
       localStorage.removeItem('login_time')
       localStorage.removeItem('is_admin_login')
       
-      // Redirect to login page
-      // Check if we're already on login page to avoid redirect loop
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = wasAdminLogin ? '/login?admin=true' : '/login'
-      }
+        window.location.href = wasAdminLogin ? '/admin/login' : '/login'
     }
     
     return Promise.reject(error)

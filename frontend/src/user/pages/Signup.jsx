@@ -38,7 +38,7 @@ const Signup = () => {
 
   const handleSendOTP = async (e) => {
     e.preventDefault()
-    
+
     if (!formData.mobile || formData.mobile.length !== 10) {
       setError('Please enter a valid 10-digit mobile number')
       return

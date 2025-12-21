@@ -22,6 +22,7 @@ import Login from './user/pages/Login'
 import Signup from './user/pages/Signup'
 // Admin pages
 import AdminDashboard from './admin/pages/AdminDashboard'
+import AdminLogin from './admin/pages/AdminLogin'
 
 function AppContent() {
   const location = useLocation()
@@ -69,6 +70,8 @@ function AppContent() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        {/* Admin routes - completely separate from user routes */}
+        <Route path="/admin/login" element={<AdminLogin />} />
         <Route 
           path="/admin/*" 
           element={

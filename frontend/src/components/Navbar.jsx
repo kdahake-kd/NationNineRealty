@@ -14,17 +14,7 @@ const Navbar = () => {
   // Check if we're on an admin route - if so, don't show navbar at all
   const isAdminRoute = location.pathname.startsWith('/admin')
   
-  // Don't render navbar if on admin route OR if this is an admin login session
-  if (isAdminRoute || isAdminLogin) {
-    return null
-  }
-
-  const handleLogout = () => {
-    logout()
-    setIsMenuOpen(false)
-    navigate('/')
-  }
-
+  // IMPORTANT: All hooks must be called before any conditional returns
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50)
@@ -46,6 +36,18 @@ const Navbar = () => {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isPropertiesOpen])
+  
+  // Don't render navbar if on admin route OR if this is an admin login session
+  // This check must come AFTER all hooks are called
+  if (isAdminRoute || isAdminLogin) {
+    return null
+  }
+
+  const handleLogout = () => {
+    logout()
+    setIsMenuOpen(false)
+    navigate('/')
+  }
 
   const isActive = (path) => {
     if (path === '/') {

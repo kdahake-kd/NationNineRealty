@@ -1,21 +1,21 @@
+/**
+ * User Login Page
+ * OTP-based authentication for normal users only
+ * Admin users should use /admin/login
+ */
 import React, { useState, useEffect } from 'react'
-import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { authAPI } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import './Auth.css'
 
 const Login = () => {
-  const { login, isAuthenticated, isAdmin, isLoading } = useAuth()
+  const { login, isLoading } = useAuth()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const isAdminLogin = searchParams.get('admin') === 'true'
   
   // For normal user: step 1 = mobile, step 2 = OTP, step 3 = registration (if needed)
-  // For admin: single step with username + password
   const [step, setStep] = useState(1)
   const [mobile, setMobile] = useState('')
-  const [username, setUsername] = useState('') // For admin login
-  const [password, setPassword] = useState('') // For admin login
   const [otp, setOtp] = useState('')
   const [formData, setFormData] = useState({
     first_name: '',
@@ -26,29 +26,30 @@ const Login = () => {
   const [error, setError] = useState('')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
-  // Redirect if already logged in (wait for loading to complete)
-  // Skip this on initial render to avoid race conditions
+  // Redirect if already logged in as normal user (not admin)
   useEffect(() => {
-    if (isLoading) return // Wait for auth state to load
-    
-    // Check localStorage directly for more reliable auth state
     const storedUser = localStorage.getItem('user')
     const accessToken = localStorage.getItem('access_token')
-    const hasAuth = storedUser && accessToken
+    const isAdminLogin = localStorage.getItem('is_admin_login') === 'true'
     
-    if (hasAuth && !isLoggingIn) {
-      const userData = JSON.parse(storedUser)
-      const userIsAdmin = userData?.is_admin || userData?.is_staff || userData?.is_superuser
-      
-      if (isAdminLogin) {
+    // Only redirect if user is logged in and NOT an admin login
+    if (storedUser && accessToken && !isAdminLogin && !isLoggingIn) {
+      try {
+        const userData = JSON.parse(storedUser)
+        const userIsAdmin = userData?.is_admin || userData?.is_staff || userData?.is_superuser
+        
+        // If user is admin, redirect to admin dashboard
         if (userIsAdmin) {
           navigate('/admin', { replace: true })
+        } else {
+          // Normal user - redirect to home
+          navigate('/', { replace: true })
         }
-      } else {
-        navigate('/', { replace: true })
+      } catch (error) {
+        console.error('Error parsing user data:', error)
       }
     }
-  }, [isAdminLogin, isLoggingIn, isLoading, navigate])
+  }, [isLoggingIn, navigate])
   
   // Show loading while checking auth state
   if (isLoading) {
@@ -59,53 +60,6 @@ const Login = () => {
         </div>
       </div>
     )
-  }
-
-  // Admin login with username/password
-  const handleAdminLogin = async (e) => {
-    e.preventDefault()
-    
-    // Get values from form directly (handles browser autofill)
-    const form = e.target
-    const formUsername = form.elements.username?.value || username
-    const formPassword = form.elements.password?.value || password
-    
-    if (!formUsername || !formPassword) {
-      setError('Please enter username and password')
-      return
-    }
-    
-    setLoading(true)
-    setError('')
-
-    try {
-      const response = await authAPI.adminLogin({ username: formUsername, password: formPassword })
-      const { user: userData, access_token, refresh_token } = response.data
-      
-      // Store in localStorage FIRST
-      localStorage.setItem('user', JSON.stringify(userData))
-      localStorage.setItem('access_token', access_token)
-      localStorage.setItem('login_time', Date.now().toString())
-      localStorage.setItem('is_admin_login', 'true')
-      if (refresh_token) {
-        localStorage.setItem('refresh_token', refresh_token)
-      }
-      
-      // Update auth context (this will update React state)
-      login(userData, access_token, true)
-      
-      // Set isLoggingIn to prevent useEffect from interfering
-      setIsLoggingIn(true)
-      
-      // Small delay to ensure state updates propagate, then navigate
-      setLoading(false)
-      setTimeout(() => {
-        navigate('/admin', { replace: true })
-      }, 100)
-    } catch (error) {
-      setError(error.response?.data?.error || 'Invalid credentials')
-      setLoading(false)
-    }
   }
 
   // Normal user - send OTP
@@ -145,6 +99,11 @@ const Login = () => {
         setIsLoggingIn(false)
       } else {
         // User is registered, login directly
+        // Store user data and token (NOT admin login)
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+        localStorage.setItem('access_token', response.data.access_token)
+        localStorage.removeItem('is_admin_login') // Ensure not marked as admin
+        
         login(response.data.user, response.data.access_token, false)
         setTimeout(() => {
           setIsLoggingIn(false)
@@ -179,6 +138,11 @@ const Login = () => {
         email: formData.email || null
       })
       
+      // Store user data and token (NOT admin login)
+      localStorage.setItem('user', JSON.stringify(response.data.user))
+      localStorage.setItem('access_token', response.data.access_token)
+      localStorage.removeItem('is_admin_login') // Ensure not marked as admin
+      
       login(response.data.user, response.data.access_token, false)
       setTimeout(() => {
         setIsLoggingIn(false)
@@ -190,57 +154,6 @@ const Login = () => {
     } finally {
       setLoading(false)
     }
-  }
-
-  // Admin Login Form
-  if (isAdminLogin) {
-    return (
-      <div className="auth-page">
-        <div className="auth-container">
-          <h2>Admin Login</h2>
-          <p className="admin-notice" style={{ 
-            color: '#667eea', 
-            marginBottom: '1rem', 
-            fontSize: '0.9rem',
-            textAlign: 'center'
-          }}>
-            Use your admin credentials (createsuperuser)
-          </p>
-          
-          <form onSubmit={handleAdminLogin} className="auth-form">
-            {error && <div className="error-message">{error}</div>}
-            
-            <div className="form-group">
-              <input
-                type="text"
-                name="username"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => { setUsername(e.target.value); setError('') }}
-                autoComplete="username"
-                required
-              />
-            </div>
-            
-            <div className="form-group">
-              <input
-                type="password"
-                name="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError('') }}
-                autoComplete="current-password"
-                required
-              />
-            </div>
-            
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Logging in...' : 'Login'}
-            </button>
-          </form>
-        </div>
-      </div>
-    )
   }
 
   // Normal User Login Form (OTP based)

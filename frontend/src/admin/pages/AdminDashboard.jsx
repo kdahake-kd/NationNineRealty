@@ -99,10 +99,12 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     // AdminRoute already handles auth check, just fetch data
+    console.log('AdminDashboard: Component mounted, fetching initial data')
     fetchInitialData()
   }, [])
 
   useEffect(() => {
+    console.log('AdminDashboard: activeTab changed to', activeTab)
     if (activeTab === 'dashboard') {
       fetchDashboardData()
     } else if (activeTab === 'projects') {
@@ -125,11 +127,14 @@ const AdminDashboard = () => {
     setLoading(true)
     setError('')
     try {
+      console.log('AdminDashboard: Fetching leads stats...')
       const statsRes = await adminAPI.getLeadsStats()
+      console.log('AdminDashboard: Leads stats received:', statsRes.data)
       setStats(statsRes.data)
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to load dashboard data')
-      console.error('Error fetching dashboard data:', error)
+      console.error('AdminDashboard: Error fetching dashboard data:', error)
+      console.error('AdminDashboard: Error response:', error.response)
+      setError(error.response?.data?.error || error.message || 'Failed to load dashboard data')
     } finally {
       setLoading(false)
     }
@@ -717,12 +722,33 @@ const AdminDashboard = () => {
     setTowers(updated)
   }
 
+  // Debug: Log current state
+  console.log('AdminDashboard: Rendering with state:', {
+    activeTab,
+    loading,
+    error,
+    stats,
+    user: user?.username,
+    hasUser: !!user,
+    accessToken: !!localStorage.getItem('access_token')
+  })
+
+  // Ensure component always renders something visible
+  if (!user) {
+    console.warn('AdminDashboard: No user in context, but AdminRoute should have checked this')
+  }
+
   return (
-    <div className="admin-dashboard">
+    <div className="admin-dashboard" style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
       <div className="admin-header">
         <div className="admin-header-content">
           <h1>Admin Dashboard</h1>
-          <button className="btn btn-secondary" onClick={handleLogout}>Logout</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <span style={{ fontSize: '0.9rem', color: '#666' }}>
+              Welcome, {user?.username || 'Admin'}
+            </span>
+            <button className="btn btn-secondary" onClick={handleLogout}>Logout</button>
+          </div>
         </div>
       </div>
 
@@ -763,6 +789,23 @@ const AdminDashboard = () => {
           {activeTab === 'dashboard' && (
             <div className="dashboard-tab">
               <h2>Dashboard Overview</h2>
+              {loading && !stats && (
+                <div style={{ padding: '2rem', textAlign: 'center' }}>
+                  <p>Loading dashboard data...</p>
+                </div>
+              )}
+              {error && (
+                <div className="alert alert-error" style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#fee', border: '1px solid #fcc', borderRadius: '4px' }}>
+                  <strong>Error:</strong> {error}
+                  <br />
+                  <small>Check browser console (F12) for more details</small>
+                </div>
+              )}
+              {!loading && !stats && !error && (
+                <div style={{ padding: '2rem', textAlign: 'center' }}>
+                  <p>No data available. Click "Dashboard" in the sidebar to refresh.</p>
+                </div>
+              )}
               {stats && (
                 <div className="stats-grid">
                   <div className="stat-card">
